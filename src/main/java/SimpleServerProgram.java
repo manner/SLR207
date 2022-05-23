@@ -45,25 +45,20 @@ public class SimpleServerProgram {
             for (int i = 0; i < numberServers; i++) {
                 String serverName = inputStream.readUTF();
                 servers.add(serverName);
-
-
                 if (inputStream.readBoolean()) {
                     serverId = i;
                 }
             }
 
-            for (int i = 0; i < numberServers; i++) {
-                System.out.println(servers.get(i) + (serverId == i ? " Me" : ""));
-            }
+//            for (int i = 0; i < numberServers; i++) {
+//                System.out.println(servers.get(i) + (serverId == i ? " Me" : ""));
+//            }
 
-            System.out.println(serverId + " receiving split from client");
             receiveSplit(inputStream, fileOutputStream);
 
             Receiver receiver = new Receiver(servers, serverId, listener);
             Thread receiver_thread = new Thread(receiver);
             receiver_thread.start();
-
-            System.out.println("Started receiver.");
 
             // Start sending key value pairs to other servers
             Sender sender = new Sender(servers, serverId, splitFile);
@@ -79,8 +74,6 @@ public class SimpleServerProgram {
             for (Map.Entry<String, Integer> entry : word_count_received.entrySet()) {
                 System.out.println(serverId + "   " + entry.getKey() + ": " + entry.getValue());
             }
-
-            System.out.println("Sending OK");
 
             outputStream.writeUTF(">> OK");
             outputStream.flush();
@@ -137,14 +130,10 @@ class Receiver implements Runnable {
                     continue;
                 }
                 finished.add(false);
-//                ServerSocket receiver = new ServerSocket(4398);
-                System.out.println(serverId + " is waiting to accept sender...");
 
                 // Get new Socket at Server.
                 Socket receiverSocket = listener.accept();
                 sockets.add(receiverSocket);
-
-                System.out.println("Accept a sender!");
                 DataInputStream receiverStream = new DataInputStream(receiverSocket.getInputStream());
                 inputStreams.add(receiverStream);
             }
@@ -159,7 +148,6 @@ class Receiver implements Runnable {
                             finished.set(i, true);
                         } else {
                             word_count.merge(key, 1, Integer::sum);
-                            System.out.println(serverId + " received: " + key + " total: " + word_count.get(key));
                         }
                     }
                 }
@@ -168,7 +156,6 @@ class Receiver implements Runnable {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        System.out.println("Stopping thread");
     }
 
     Map<String, Integer> get_word_count() {
@@ -191,7 +178,6 @@ class Sender implements Runnable {
     }
 
     public void run() {
-        System.out.println("thread is running...");
         try {
             // Create connection to other addresses
             for (int i = 0; i < servers.size(); i++) {
@@ -204,11 +190,8 @@ class Sender implements Runnable {
                 sockets.add(socket);
                 DataOutputStream stream = new DataOutputStream(socket.getOutputStream());
                 connections.add(stream);
-                System.out.println("Sender connected to the receiver.");
 
             }
-            System.out.println(serverId + " has " + sockets.size() + " socket connections.");
-
             BufferedReader objReader = null;
             objReader = new BufferedReader(new FileReader(splitFile));
             String strCurrentLine;
@@ -217,16 +200,10 @@ class Sender implements Runnable {
                 for (String key : keys) {
                     int serverToSend = hash(key) % servers.size();
                     if (serverToSend == serverId) {
-                        System.out.println(key);
                         word_count.merge(key, 1, Integer::sum);
                         continue;
                     }
-                    System.out.println(serverId + " about to send data to " + serverToSend);
-                    if (connections.get(serverToSend) != null) {
-                        connections.get(serverToSend).writeUTF(key);
-                    } else {
-                        System.out.println(serverToSend + " connection is empty.");
-                    }
+                    connections.get(serverToSend).writeUTF(key);
                 }
             }
             for (int i = 0; i < servers.size(); i++) {

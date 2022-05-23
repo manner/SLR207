@@ -7,7 +7,6 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 public class SimpleClient {
 
@@ -43,7 +42,7 @@ public class SimpleClient {
                     outputStream.get(i).writeBoolean(i == serverId);
                 }
             }
-            TimeUnit.SECONDS.sleep(1);
+//            TimeUnit.SECONDS.sleep(1);
 
             System.out.println("Sending Splits to each server.");
 
@@ -86,8 +85,6 @@ public class SimpleClient {
             System.err.println("Trying to connect to unknown host: " + e);
         } catch (IOException e) {
             System.err.println("IOException:  " + e);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
         }
 
     }
