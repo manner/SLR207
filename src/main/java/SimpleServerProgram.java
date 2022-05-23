@@ -71,13 +71,15 @@ public class SimpleServerProgram {
             // reduce
             word_count_own.forEach((key, value) -> word_count_received.merge(key, value, Integer::sum));
 
+
+            outputStream.writeInt(word_count_received.size());
             for (Map.Entry<String, Integer> entry : word_count_received.entrySet()) {
+                outputStream.writeUTF(entry.getKey());
+                outputStream.writeInt(entry.getValue());
                 System.out.println(serverId + "   " + entry.getKey() + ": " + entry.getValue());
             }
-
             outputStream.writeUTF(">> OK");
             outputStream.flush();
-
 
         } catch (IOException | InterruptedException e) {
             System.out.println(e);

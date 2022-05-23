@@ -6,7 +6,10 @@ import java.io.IOException;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class SimpleClient {
 
@@ -63,23 +66,54 @@ public class SimpleClient {
                 fileInputStream.get(i).close();
                 outputStream.get(i).writeUTF("QUIT");
                 outputStream.get(i).flush();
+                //TODO remove
             }
+
             for (int i = 0; i < servers.length; i++) {
                 inputStream.add(new DataInputStream(socketOfClient.get(i).getInputStream()));
-
-                // Read data sent from the server.
-                // By reading the input stream of the Client Socket.
-                String responseLine;
-                while ((responseLine = inputStream.get(i).readUTF()) != null) {
-                    System.out.println("Server" + i + ": " + responseLine);
-                    if (responseLine.indexOf("OK") != -1) {
-                        break;
+            }
+            HashMap<String, Integer> word_count = new HashMap<>();
+            List<Boolean> finished = new ArrayList<>(Collections.nCopies(servers.length, false));
+            System.out.println("Receiving word_counts");
+            while (finished.contains(false)) {
+                for (int i = 0; i < servers.length; i++) {
+                    if(finished.get(i)){
+                        continue;
                     }
-                }
 
+                    // Read data sent from the server.
+                    // By reading the input stream of the Client Socket.
+                    DataInputStream current = inputStream.get(i);
+                    if (current.available() > 0) {
+                        int keys_available = current.readInt();
+//                        System.out.println("Keys avaialbe " + keys_available);
+                        for (int j = 0; j < keys_available; j++) {
+                            String key = current.readUTF();
+                            int value = current.readInt();
+                            word_count.put(key, value);
+                        }
+                        finished.set(i, true);
+                    }
+
+//                    String responseLine;
+//                    while ((responseLine = inputStream.get(i).readUTF()) != null) {
+//                        System.out.println("Server" + i + ": " + responseLine);
+//                        if (responseLine.indexOf("OK") != -1) {
+//                            break;
+//                        }
+//                    }
+
+
+                }
+            }
+            for (int i = 0; i < servers.length; i++) {
                 outputStream.get(i).close();
                 inputStream.get(i).close();
                 socketOfClient.get(i).close();
+            }
+
+            for (Map.Entry<String, Integer> entry : word_count.entrySet()) {
+                System.out.println(entry.getKey() + ": " + entry.getValue());
             }
         } catch (UnknownHostException e) {
             System.err.println("Trying to connect to unknown host: " + e);
