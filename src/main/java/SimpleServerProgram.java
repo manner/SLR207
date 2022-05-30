@@ -1,11 +1,13 @@
 import java.io.BufferedReader;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -54,7 +56,10 @@ public class SimpleServerProgram {
 //                System.out.println(servers.get(i) + (serverId == i ? " Me" : ""));
 //            }
 
+            long startReceivingSplit = System.currentTimeMillis();
             receiveSplit(inputStream, fileOutputStream);
+            long endReceivingSplit = System.currentTimeMillis();
+            System.out.println("Time Receiving Split: " + (endReceivingSplit - startReceivingSplit) + "ms");
 
             Receiver receiver = new Receiver(servers, serverId, listener);
             Thread receiver_thread = new Thread(receiver);
@@ -68,16 +73,25 @@ public class SimpleServerProgram {
             Map<String, Integer> word_count_received = receiver.get_word_count();
             Map<String, Integer> word_count_own = sender.get_word_count();
 
+
+
             // reduce
+            long startMergingWordCounts = System.currentTimeMillis();
+
             word_count_own.forEach((key, value) -> word_count_received.merge(key, value, Integer::sum));
+            long endMergingWordCounts = System.currentTimeMillis();
+            System.out.println("Time Merging Wordcounts: " + (endMergingWordCounts - startMergingWordCounts) + "ms");
 
-
+            long startSendingWordCounts = System.currentTimeMillis();
             outputStream.writeInt(word_count_received.size());
             for (Map.Entry<String, Integer> entry : word_count_received.entrySet()) {
                 outputStream.writeUTF(entry.getKey());
                 outputStream.writeInt(entry.getValue());
-                System.out.println(serverId + "   " + entry.getKey() + ": " + entry.getValue());
+//                System.out.println(serverId + "   " + entry.getKey() + ": " + entry.getValue());
             }
+            long endSendingWordCounts = System.currentTimeMillis();
+            System.out.println("Time Sending Wordcounts: " + (endSendingWordCounts - startSendingWordCounts) + "ms");
+
             outputStream.writeUTF(">> OK");
             outputStream.flush();
 
@@ -93,9 +107,11 @@ public class SimpleServerProgram {
     private static void receiveSplit(DataInputStream inputStream, FileOutputStream fileOutputStream) throws IOException {
         int bytesRead = 0;
         long splitSize = inputStream.readLong();
+//        System.out.println(splitSize);
         byte[] buffer = new byte[8192];
         while (splitSize > 0 && (bytesRead = inputStream.read(buffer, 0, (int) Math.min(buffer.length, splitSize))) != -1) {
             fileOutputStream.write(buffer, 0, bytesRead);
+//            System.out.println("'" + new String(buffer, StandardCharsets.UTF_8) + "'");
             splitSize -= bytesRead;
         }
         fileOutputStream.close();
@@ -125,6 +141,8 @@ class Receiver implements Runnable {
     public void run() {
         // Receive keys from other servers
         try {
+            long startReceivingWords = System.currentTimeMillis();
+
             for (int i = 0; i < servers.size(); i++) {
                 if (i == serverId) {
                     finished.add(true);
@@ -155,6 +173,9 @@ class Receiver implements Runnable {
                 }
 
             }
+            long endReceivingWords = System.currentTimeMillis();
+            System.out.println("Time Receiving Words: " + (endReceivingWords - startReceivingWords) + "ms");
+
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -181,6 +202,8 @@ class Sender implements Runnable {
 
     public void run() {
         try {
+            long startConnections = System.currentTimeMillis();
+
             // Create connection to other addresses
             for (int i = 0; i < servers.size(); i++) {
                 if (i == serverId) {
@@ -194,13 +217,22 @@ class Sender implements Runnable {
                 connections.add(stream);
 
             }
-            BufferedReader objReader = null;
-            objReader = new BufferedReader(new FileReader(splitFile));
+            long startSending = System.currentTimeMillis();
+            System.out.println("Time Connecting to other servers: " + (startSending - startConnections) + "ms");
+
+            BufferedReader objReader = new BufferedReader(new InputStreamReader(new FileInputStream(splitFile), StandardCharsets.UTF_8));
+//            BufferedReader objReader = null;
+//            objReader = new BufferedReader(new FileReader(splitFile));
             String strCurrentLine;
             while ((strCurrentLine = objReader.readLine()) != null) {
                 String[] keys = strCurrentLine.split(" ");
                 for (String key : keys) {
-                    int serverToSend = hash(key) % servers.size();
+//                    System.out.println(key);
+                    if (key.getBytes().length > 1000) {
+//                        System.out.println(key);
+                        continue;
+                    }
+                    int serverToSend = Math.abs(hash(key)) % servers.size();
                     if (serverToSend == serverId) {
                         word_count.merge(key, 1, Integer::sum);
                         continue;
@@ -214,6 +246,9 @@ class Sender implements Runnable {
                 }
                 connections.get(i).writeUTF(SimpleServerProgram.FINISHED_KEYWORD);
             }
+            long finishedSending = System.currentTimeMillis();
+            System.out.println("Time Sending to other servers: " + (finishedSending - startSending) + "ms");
+
         } catch (IOException e) {
             e.printStackTrace();
         }

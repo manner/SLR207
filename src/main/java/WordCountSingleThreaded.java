@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 
 public class WordCountSingleThreaded {
     public static void main(String[] args) throws IOException {
-        String filename = "/Users/moritzmanner/Projects/SLR207/src/main/java/CC-MAIN-20220116093137-20220116123137-00001.warc.wet";
+        String filename = "/Users/moritzmanner/Projects/SLR207/src/main/java/big.txt";
         Scanner in = new Scanner(new File(filename));
         BufferedReader objReader = new BufferedReader(new FileReader(filename));
 
@@ -19,18 +19,18 @@ public class WordCountSingleThreaded {
 
         long timeStart = System.currentTimeMillis();
 
-//        String strCurrentLine;
-//        while ((strCurrentLine = objReader.readLine()) != null) {
-//            String[] test = strCurrentLine.split(" ");
-//            for (String a : test) {
-//                word_count.merge(a, 1, Integer::sum);
-//            }
-//        }
-
-
-        while (in.hasNext()) {
-            word_count.merge(in.next(), 1, Integer::sum);
+        String strCurrentLine;
+        while ((strCurrentLine = objReader.readLine()) != null) {
+            String[] test = strCurrentLine.split(" ");
+            for (String a : test) {
+                word_count.merge(a, 1, Integer::sum);
+            }
         }
+
+
+//        while (in.hasNext()) {
+//            word_count.merge(in.next(), 1, Integer::sum);
+//        }
 
         long timeCountOccurrences = System.currentTimeMillis();
 
