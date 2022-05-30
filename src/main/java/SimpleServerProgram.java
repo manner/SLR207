@@ -74,7 +74,6 @@ public class SimpleServerProgram {
             Map<String, Integer> word_count_own = sender.get_word_count();
 
 
-
             // reduce
             long startMergingWordCounts = System.currentTimeMillis();
 
@@ -164,10 +163,12 @@ class Receiver implements Runnable {
                     }
                     if (inputStreams.get(i).available() > 0) {
                         String key = inputStreams.get(i).readUTF();
+
                         if (SimpleServerProgram.FINISHED_KEYWORD.equals(key)) {
                             finished.set(i, true);
                         } else {
-                            word_count.merge(key, 1, Integer::sum);
+                            int value = inputStreams.get(i).readInt();
+                            word_count.merge(key, value, Integer::sum);
                         }
                     }
                 }
@@ -192,7 +193,7 @@ class Sender implements Runnable {
     private final List<String> servers;
     private final int serverId;
     private final String splitFile;
-    private Map<String, Integer> word_count = new HashMap<>();
+    private final List<Map<String, Integer>> word_counts = new ArrayList<Map<String, Integer>>();
 
     public Sender(List<String> servers, int serverId, String splitFile) {
         this.servers = servers;
@@ -206,6 +207,7 @@ class Sender implements Runnable {
 
             // Create connection to other addresses
             for (int i = 0; i < servers.size(); i++) {
+                word_counts.add(new HashMap<>());
                 if (i == serverId) {
                     sockets.add(new Socket());
                     connections.add(new DataOutputStream(null));
@@ -215,6 +217,7 @@ class Sender implements Runnable {
                 sockets.add(socket);
                 DataOutputStream stream = new DataOutputStream(socket.getOutputStream());
                 connections.add(stream);
+
 
             }
             long startSending = System.currentTimeMillis();
@@ -233,16 +236,18 @@ class Sender implements Runnable {
                         continue;
                     }
                     int serverToSend = Math.abs(hash(key)) % servers.size();
-                    if (serverToSend == serverId) {
-                        word_count.merge(key, 1, Integer::sum);
-                        continue;
-                    }
-                    connections.get(serverToSend).writeUTF(key);
+                    word_counts.get(serverToSend).merge(key, 1, Integer::sum);
+
                 }
             }
             for (int i = 0; i < servers.size(); i++) {
                 if (serverId == i) {
                     continue;
+                }
+                for (Map.Entry<String, Integer> entry : word_counts.get(i).entrySet()) {
+                    connections.get(i).writeUTF(entry.getKey());
+                    connections.get(i).writeInt(entry.getValue());
+//                System.out.println(serverId + "   " + entry.getKey() + ": " + entry.getValue());
                 }
                 connections.get(i).writeUTF(SimpleServerProgram.FINISHED_KEYWORD);
             }
@@ -255,6 +260,6 @@ class Sender implements Runnable {
     }
 
     Map<String, Integer> get_word_count() {
-        return word_count;
+        return word_counts.get(serverId);
     }
 }
