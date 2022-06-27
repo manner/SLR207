@@ -6,12 +6,12 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class SimpleClient {
 
@@ -106,63 +106,93 @@ public class SimpleClient {
                 inputStream.add(new DataInputStream(socketOfClient.get(i).getInputStream()));
             }
             HashMap<String, Integer> word_count = new HashMap<>();
-            List<Boolean> finished = new ArrayList<>(Collections.nCopies(servers.length, false));
+            List<WordCountReceiver> receiverList = new ArrayList<>();
+            List<Thread> receiverThreads = new ArrayList<>();
             System.out.println("Receiving word_counts");
-            while (finished.contains(false)) {
-                for (int i = 0; i < servers.length; i++) {
-                    if (finished.get(i)) {
-                        continue;
-                    }
 
-                    // Read data sent from the server.
-                    // By reading the input stream of the Client Socket.
-                    DataInputStream current = inputStream.get(i);
-                    if (current.available() > 0) {
-                        int keys_available = current.readInt();
-//                        System.out.println("Keys avaialbe " + keys_available);
-                        for (int j = 0; j < keys_available; j++) {
-                            String key = current.readUTF();
-                            int value = current.readInt();
-                            word_count.put(key, value);
-                        }
-                        finished.set(i, true);
-                    }
-
-//                    String responseLine;
-//                    while ((responseLine = inputStream.get(i).readUTF()) != null) {
-//                        System.out.println("Server" + i + ": " + responseLine);
-//                        if (responseLine.indexOf("OK") != -1) {
-//                            break;
-//                        }
-//                    }
-
-
-                }
+            // Starting receiver threads
+            for (int i = 0; i < servers.length; i++) {
+                WordCountReceiver receiver = new WordCountReceiver(inputStream.get(i), i);
+                receiverList.add(receiver);
+                Thread receiverThread = new Thread(receiver);
+                receiverThreads.add(receiverThread);
+                receiverThread.start();
             }
+
+            for (int i = 0; i < servers.length ; i++) {
+                receiverThreads.get(i).join();
+                receiverList.get(i).getWord_count().forEach((key, value) -> word_count.merge(key, value, Integer::sum));
+            }
+
             long timeCountOccurrences = System.currentTimeMillis();
+            System.out.println("Time Count Occurrences: " + (timeCountOccurrences - sentSplits) + "ms");
 
             for (int i = 0; i < servers.length; i++) {
                 outputStream.get(i).close();
                 inputStream.get(i).close();
                 socketOfClient.get(i).close();
             }
+            long timeClosing = System.currentTimeMillis();
+            System.out.println("Time Closing: " + (timeClosing - timeCountOccurrences) + "ms");
 
-            word_count.entrySet().stream()
+            System.out.println("Elements received: " + word_count.size());
+
+            List<Map.Entry<String, Integer>> top50 = word_count.entrySet().stream()
                     .sorted(Collections.reverseOrder(Map.Entry.<String, Integer>comparingByValue()).thenComparing(Map.Entry.comparingByKey()))
                     .limit(50)
-                    .forEach(x -> System.out.println(x.getKey() + " " + x.getValue()));
+                    .collect(Collectors.toList());
+//                    .forEach(x -> System.out.println(x.getKey() + " " + x.getValue()));
 
             long timeSorting = System.currentTimeMillis();
 
-            System.out.println("Time Count Occurrences: " + (timeCountOccurrences - sentSplits) + "ms");
-            System.out.println("Time Sorting: " + (timeSorting - timeCountOccurrences) + "ms");
+            System.out.println("Time Sorting: " + (timeSorting - timeClosing) + "ms");
             System.out.println("Time Total: " + (timeSorting - timeStart) + "ms");
 
         } catch (UnknownHostException e) {
             System.err.println("Trying to connect to unknown host: " + e);
         } catch (IOException e) {
             System.err.println("IOException:  " + e);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
 
+    }
+}
+
+
+class WordCountReceiver implements Runnable {
+
+    private DataInputStream inputStream;
+    private int serverId;
+    private HashMap<String, Integer> word_count = new HashMap<>();
+
+    public WordCountReceiver(DataInputStream inputStream, int i) {
+        this.inputStream = inputStream;
+        this.serverId = i;
+    }
+
+    public void run() {
+        System.out.println("Reading from " + serverId);
+        // Read data sent from the server.
+        // By reading the input stream of the Client Socket.
+        try {
+            while (inputStream.available() <= 0) {
+            }
+            System.out.println("Available from " + serverId);
+            int keys_available = inputStream.readInt();
+            for (int j = 0; j < keys_available; j++) {
+                String key = inputStream.readUTF();
+                int value = inputStream.readInt();
+                word_count.put(key, value);
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    public HashMap<String, Integer> getWord_count() {
+        return word_count;
     }
 }
