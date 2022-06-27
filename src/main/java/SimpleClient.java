@@ -20,9 +20,9 @@ public class SimpleClient {
         // Server Host
         final String serverHost = "tp-1a226-";
 //        final String[] servers = {"06"};
-        final String[] servers = {"06", "07", "08"};
+        final String[] servers = {"06", "07", "08", "12", "14", "16", "17", "20", "22", "23"};
         final String domain = ".enst.fr";
-        final String filename = "/Users/moritzmanner/Projects/SLR207/src/main/java/big.txt";
+        final String filename = "/Users/moritzmanner/Projects/SLR207/src/main/java/rename.wet";
         long timeStart = System.currentTimeMillis();
 
         try {
