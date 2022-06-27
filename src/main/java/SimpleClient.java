@@ -55,49 +55,22 @@ public class SimpleClient {
 
             // create splits
 
-            RandomAccessFile raf = new RandomAccessFile(filename, "r");
 
-            long fileSize = raf.length();
-            long bytesPerSplit = fileSize / servers.length;
-            long remainingBytes = fileSize % servers.length;
-            int count = 0;
-
+//            int count = 0;
+            List<Thread> splitSenders = new ArrayList<>();
             for (int i = 0; i < servers.length; i++) {
 
-                // Read split file
-//                split.add(new File(filename + (i + 1) + ".txt"));
-//                fileInputStream.add(new FileInputStream(split.get(i)));
-
-                // Send splits to each server
-                long splitSize;
-                if (i == (servers.length - 1)) {
-                    splitSize = bytesPerSplit + remainingBytes;
-                } else {
-                    splitSize = bytesPerSplit;
-                }
-                outputStream.get(i).writeLong(splitSize);
-
-                byte[] buffer = new byte[8192]; // or 4096, or more
-                int bytesRead;
-
-                while (splitSize > 0 && (bytesRead = raf.read(buffer, 0, (int) Math.min(buffer.length, splitSize))) != -1) {
-                    outputStream.get(i).write(buffer, 0, bytesRead);
-//                    System.out.println(i);
-//                    System.out.println("'" + new String(buffer, StandardCharsets.UTF_8) + "'");
-                    outputStream.get(i).flush();
-                    splitSize -= bytesRead;
-                    count += bytesRead;
-                }
-//                while ((count = fileInputStream.get(i).read(buffer)) != -1) {
-//                    outputStream.get(i).write(buffer, 0, count);
-//                    outputStream.get(i).flush();
-//                }
-//                fileInputStream.get(i).close();
-//                outputStream.get(i).writeUTF("QUIT");
-//                outputStream.get(i).flush();
-                //TODO remove
+                SplitSender splitSender = new SplitSender(outputStream.get(i), i, filename, servers.length);
+//                receiverList.add(receiver);
+                Thread splitSenderThread = new Thread(splitSender);
+                splitSenders.add(splitSenderThread);
+                splitSenderThread.start();
             }
-            raf.close();
+
+            for (Thread thread : splitSenders) {
+                thread.join();
+            }
+
             long sentSplits = System.currentTimeMillis();
             System.out.println("Time Sending Splits: " + (sentSplits - timeStart) + "ms");
 
@@ -159,6 +132,58 @@ public class SimpleClient {
     }
 }
 
+
+class SplitSender implements Runnable {
+
+    private DataOutputStream outputStream;
+    private int serverId;
+    private RandomAccessFile raf;
+    private String filename;
+    private long fileSize;
+    private long bytesPerSplit;
+    private long remainingBytes;
+    private int serverLength;
+
+    public SplitSender(DataOutputStream outputStream, int i, String filename, int serverLength) throws IOException {
+        this.outputStream = outputStream;
+        this.serverId = i;
+        this.filename = filename;
+        this.raf = new RandomAccessFile(filename, "r");
+        this.serverLength = serverLength;
+        fileSize = raf.length();
+        bytesPerSplit = fileSize / serverLength;
+        remainingBytes = fileSize % serverLength;
+    }
+
+    public void run() {
+        long splitSize;
+        if (serverId == (serverLength - 1)) {
+            splitSize = bytesPerSplit + remainingBytes;
+        } else {
+            splitSize = bytesPerSplit;
+        }
+        try {
+            raf.seek(bytesPerSplit * serverId);
+            outputStream.writeLong(splitSize);
+
+            byte[] buffer = new byte[8192]; // or 4096, or more
+            int bytesRead;
+
+            while (splitSize > 0 && (bytesRead = raf.read(buffer, 0, (int) Math.min(buffer.length, splitSize))) != -1) {
+                outputStream.write(buffer, 0, bytesRead);
+//                    System.out.println(i);
+//                    System.out.println("'" + new String(buffer, StandardCharsets.UTF_8) + "'");
+                outputStream.flush();
+                splitSize -= bytesRead;
+            }
+            raf.close();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+}
 
 class WordCountReceiver implements Runnable {
 
